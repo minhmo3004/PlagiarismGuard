@@ -1,8 +1,9 @@
-services:
+version: '3.8'
 
-  # ═══════════════════════════════════════
+services:
+  # ═══════════════════════════════════════════════════════════════
   # INFRASTRUCTURE SERVICES
-  # ═══════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════
 
   redis:
     image: redis:7-alpine
@@ -13,7 +14,7 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 4gb --maxmemory-policy allkeys-lru
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -32,7 +33,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -52,22 +53,23 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 30s
       timeout: 20s
       retries: 3
     networks:
       - plagiarism-network
 
-  # ═══════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════
   # APPLICATION SERVICES
-  # ═══════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════
 
-  backend:
+  # Backend
+  be_cdv:
     build:
-      context: ./be_cdv
+      context: ./be_cdv           # ← Đã sửa đúng
       dockerfile: Dockerfile
-    container_name: plagiarism-backend
+    container_name: plagiarism_be_cdv
     ports:
       - "8000:8000"
     environment:
@@ -94,25 +96,27 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
     networks:
       - plagiarism-network
 
-  frontend:
+  # Frontend
+  fe_cdv:
     build:
-      context: ./fe_cdv
+      context: ./fe_cdv           # ← Đã sửa đúng
       dockerfile: Dockerfile
-    container_name: plagiarism-frontend
+    container_name: plagiarism_fe_cdv
     ports:
       - "3000:80"
     depends_on:
-      - backend
+      - be_cdv
     networks:
       - plagiarism-network
 
+  # Corpus Generator
   corpus-init:
     build:
       context: ./be_cdv
@@ -126,7 +130,7 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_SECURE=False
-    command: ["python", "scripts/generate_corpus.py", "--num-docs", "3000", "--redis-host", "redis"]
+    command: [ "python", "scripts/generate_corpus.py", "--num-docs", "3000", "--redis-host", "redis" ]
     depends_on:
       redis:
         condition: service_healthy
@@ -139,10 +143,15 @@ services:
 
 volumes:
   redis_data:
+    driver: local
   postgres_data:
+    driver: local
   minio_data:
+    driver: local
   backend_uploads:
+    driver: local
 
 networks:
   plagiarism-network:
+    name: plagiarism-network
     driver: bridge
